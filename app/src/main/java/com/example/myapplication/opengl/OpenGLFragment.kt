@@ -1,11 +1,16 @@
 package com.example.myapplication.opengl
 
+import android.app.ActivityManager
+import android.content.Context
+import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.example.myapplication.databinding.FragmentOpenGlBinding
+import com.example.myapplication.example.ExampleOpenGlRender
+
 
 class OpenGLFragment : Fragment() {
     // Nullable private binding to prevent memory leaks
@@ -13,7 +18,7 @@ class OpenGLFragment : Fragment() {
 
     // Non-null binding property for convenient access
     private val binding get() = _binding!!
-    private lateinit var cubeRenderer: CubeRenderer
+    private lateinit var cubeRenderer: GLSurfaceView.Renderer
 
 
     override fun onCreateView(
@@ -27,8 +32,11 @@ class OpenGLFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        cubeRenderer = CubeRenderer(requireContext())
-        binding.glSurfaceView.setRenderer(cubeRenderer)
+        if (supportES2()) {
+            cubeRenderer = ExampleOpenGlRender(requireContext())
+            binding.glSurfaceView.setEGLContextClientVersion(2)
+            binding.glSurfaceView.setRenderer(cubeRenderer)
+        }
     }
 
     override fun onDestroyView() {
@@ -45,4 +53,12 @@ class OpenGLFragment : Fragment() {
         super.onPause()
         binding.glSurfaceView.onPause()
     }
+
+    private fun supportES2(): Boolean {
+        val activityManager =
+            requireContext().getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val configurationInfo = activityManager.deviceConfigurationInfo
+        return (configurationInfo.reqGlEsVersion >= 0x20000)
+    }
+
 }
