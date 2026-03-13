@@ -1,4 +1,4 @@
-package com.example.myapplication
+package com.example.myapplication.opengl
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -13,11 +13,8 @@ class OpenGLFragment : Fragment() {
 
     // Non-null binding property for convenient access
     private val binding get() = _binding!!
+    private lateinit var cubeRenderer: CubeRenderer
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -25,13 +22,17 @@ class OpenGLFragment : Fragment() {
     ): View {
         // Inflate the binding and return root view
         _binding = FragmentOpenGlBinding.inflate(inflater, container, false)
-        // Inflate the layout for this fragment
         return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        cubeRenderer = CubeRenderer(requireContext())
+        binding.glSurfaceView.setRenderer(cubeRenderer)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // IMPORTANT: Always nullify _binding to prevent memory leaks
         _binding = null
     }
 
