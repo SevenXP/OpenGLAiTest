@@ -32,7 +32,7 @@ class OpenGLFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (supportES2()) {
+        if (isSupportES2()) {
             cubeRenderer = ExampleOpenGlRender(requireContext())
             binding.glSurfaceView.setEGLContextClientVersion(2)
             binding.glSurfaceView.setRenderer(cubeRenderer)
@@ -54,7 +54,7 @@ class OpenGLFragment : Fragment() {
         binding.glSurfaceView.onPause()
     }
 
-    private fun supportES2(): Boolean {
+    private fun isSupportES2(): Boolean {
         val activityManager =
             requireContext().getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val configurationInfo = activityManager.deviceConfigurationInfo
