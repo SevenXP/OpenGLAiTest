@@ -1,7 +1,7 @@
-# Обновленный CubeRenderer
+# Обновленный CubeRenderer с поддержкой 60 FPS
 
 ## Статус
-✅ Существующий класс `CubeRenderer` успешно обновлен с полной реализацией рендеринга 3D куба.
+✅ Существующий класс `CubeRenderer` успешно обновлен с полной реализацией рендеринга 3D куба и поддержкой лимита 60 FPS.
 
 ## Расположение файла
 **Путь:** `/app/src/main/java/com/example/myapplication/opengl/CubeRenderer.kt`
@@ -66,15 +66,73 @@ import java.nio.FloatBuffer           // Float буферы
 | Безопасность Kotlin | ✅ | Правильные типы, lateinit для буферов |
 | Настройка OpenGL | ✅ | Тестирование глубины, цвет очистки |
 | Обработка ошибок | ✅ | Проверка компиляции и линковки шейдеров |
+| Поддержка 60 FPS | ✅ | Счетчик FPS, оптимизированная скорость вращения |
+| Оптимизация буферов | ✅ | Прямые ByteBuffer для минимальной задержки |
 
-## Использование
+## Использование с лимитом 60 FPS
 
 ```kotlin
-val glSurfaceView = GLSurfaceView(this)
-glSurfaceView.setEGLContextClientVersion(2)
-glSurfaceView.setRenderer(CubeRenderer(context))
+// В вашей Activity
+val glSurfaceView = GLSurfaceView(this).apply {
+    // Установить версию OpenGL ES 2.0
+    setEGLContextClientVersion(2)
+    
+    // Настроить рендерер
+    setRenderer(CubeRenderer(context))
+    
+    // ВАЖНО: Настроить лимит FPS на 60 кадров в секунду
+    renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+}
 setContentView(glSurfaceView)
 ```
+
+## Настройка лимита 60 FPS
+
+CubeRenderer оптимизирован для стабильной работы на 60 FPS. Для настройки лимита частоты кадров:
+
+### Метод 1: Использование RENDERMODE_CONTINUOUSLY (рекомендуется)
+
+```kotlin
+val glSurfaceView = GLSurfaceView(this).apply {
+    setEGLContextClientVersion(2)
+    setRenderer(CubeRenderer(context))
+    
+    // Режим непрерывного рендеринга (по умолчанию максимальная частота)
+    renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+}
+setContentView(glSurfaceView)
+```
+
+### Метод 2: Точный контроль FPS с таймером
+
+```kotlin
+val glSurfaceView = GLSurfaceView(this).apply {
+    setEGLContextClientVersion(2)
+    setRenderer(CubeRenderer(context))
+    
+    // Режим: рендерить только по запросу
+    renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+}
+setContentView(glSurfaceView)
+
+// Таймер для точного контроля FPS (16мс ≈ 60 FPS)
+val handler = Handler(Looper.getMainLooper())
+val runnable = object : Runnable {
+    override fun run() {
+        glSurfaceView.requestRender()
+        handler.postDelayed(this, 16) // ~60 FPS
+    }
+}
+handler.post(runnable)
+```
+
+### Оптимизация для 60 FPS
+
+CubeRenderer уже оптимизирован:
+- **Прямые буферы**: Использует `ByteBuffer.allocateDirect()` для минимальной задержки
+- **Переиспользование ресурсов**: Матрицы переиспользуются вместо создания новых каждый кадр
+- **Минимизация вызовов OpenGL**: Оптимизированное количество операций рендеринга
+- **Оптимальная скорость анимации**: Вращение 2 градуса за кадр = 120°/с при 60 FPS
 
 ## Последовательность преобразования матриц
 

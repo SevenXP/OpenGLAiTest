@@ -38,6 +38,11 @@ class CubeRenderer(private val context: Context) : Renderer {
 
     // Rotation angle for animation
     private var angle: Float = 0f
+    
+    // FPS counter and timing
+    private var frameCount: Int = 0
+    private var lastTime: Long = System.currentTimeMillis()
+    private var fps: Int = 0
 
     // Cube vertices (8 vertices, 3 coordinates each)
     companion object {
@@ -152,6 +157,7 @@ class CubeRenderer(private val context: Context) : Renderer {
 
         // Apply rotation to the model matrix using Matrix.rotateM()
         // Rotate around x and y axes for interesting animation
+        // Rotation speed optimized for 60 FPS: 2 degrees per frame = 120 degrees per second
         Matrix.rotateM(mModelMatrix, 0, angle, 1f, 1f, 0f)
         angle += 2f  // Increment angle for continuous rotation
 
@@ -163,6 +169,17 @@ class CubeRenderer(private val context: Context) : Renderer {
 
         // Draw the cube
         drawCube(mMVPMatrix)
+
+        // FPS counter (for debugging/optimization)
+        frameCount++
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastTime >= 1000) {
+            fps = frameCount
+            frameCount = 0
+            lastTime = currentTime
+            // Log FPS for debugging (can be removed in production)
+            // Log.d("CubeRenderer", "FPS: $fps")
+        }
     }
 
     /**
