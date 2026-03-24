@@ -33,6 +33,7 @@ This implementation provides a complete `CubeRenderer` class for rendering a 3D 
 - **Vertex buffers**: FloatBuffer implementation with proper memory management (lines 226-240)
 - **Shaders included**: Vertex and fragment shaders as strings (lines 145-165)
 - **Rotation animation**: Using Matrix.rotateM() in onDrawFrame()
+- **60 FPS frame rate limit**: Implemented with precise timing control using System.nanoTime() and Thread.sleep()
 
 ### ✅ Code Quality
 - **Full Kotlin implementation** with proper null safety
@@ -40,6 +41,19 @@ This implementation provides a complete `CubeRenderer` class for rendering a 3D 
 - **Proper error handling** for shader compilation and program linking
 - **Clear comments** explaining matrix transformations and their purposes
 - **Memory-efficient buffer management** using direct ByteBuffer allocation
+- **Precise frame rate control** with 60 FPS limit
+
+- **60 FPS Frame Rate Control** (onDrawFrame):
+  ```kotlin
+  val currentTime = System.nanoTime()
+  val elapsedNanos = currentTime - lastFrameTime
+  
+  if (elapsedNanos < frameTimeNanos) {
+      Thread.sleep((frameTimeNanos - elapsedNanos) / 1_000_000)
+      return
+  }
+  lastFrameTime = currentTime
+  ```
 
 ### ✅ Matrix Operations Sequence
 1. **Projection Matrix** (onSurfaceChanged):

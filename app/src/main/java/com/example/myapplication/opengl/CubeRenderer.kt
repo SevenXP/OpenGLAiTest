@@ -37,6 +37,10 @@ class CubeRenderer : Renderer {
 
     // Cube rotation angle
     private var cubeRotation: Float = 0f
+    
+    // Frame timing for 60 FPS limit
+    private var lastFrameTime: Long = System.nanoTime()
+    private val frameTimeNanos: Long = (1_000_000_000L / 60)
 
     companion object {
         // Vertex coordinates (X, Y, Z) for a cube with 6 faces
@@ -198,6 +202,18 @@ class CubeRenderer : Renderer {
     }
 
     override fun onDrawFrame(unused: GL10?) {
+        // Calculate time since last frame and enforce 60 FPS limit
+        val currentTime = System.nanoTime()
+        val elapsedNanos = currentTime - lastFrameTime
+        
+        if (elapsedNanos < frameTimeNanos) {
+            // Sleep for the remaining time to maintain 60 FPS
+            Thread.sleep((frameTimeNanos - elapsedNanos) / 1_000_000)
+            return
+        }
+        
+        lastFrameTime = currentTime
+
         // Clear the screen and depth buffer
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
