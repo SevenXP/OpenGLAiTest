@@ -42,6 +42,9 @@ class CubeRenderer(@Suppress("UNUSED_PARAMETER") context: Context) : GLSurfaceVi
 
     private var startTimeMs: Long = 0L
 
+    /** Минимальный интервал между кадрами (~16.67 ms для 60 FPS). */
+    private val minFrameIntervalNs = 1_000_000_000L / TARGET_FPS
+
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0.08f, 0.08f, 0.12f, 1f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
@@ -79,6 +82,8 @@ class CubeRenderer(@Suppress("UNUSED_PARAMETER") context: Context) : GLSurfaceVi
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        val frameStartNs = System.nanoTime()
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
         GLES20.glUseProgram(program)
@@ -133,6 +138,24 @@ class CubeRenderer(@Suppress("UNUSED_PARAMETER") context: Context) : GLSurfaceVi
 
         GLES20.glDisableVertexAttribArray(aPositionHandle)
         GLES20.glDisableVertexAttribArray(aColorHandle)
+
+        sleepToCapFrameRate(frameStartNs)
+    }
+
+    /**
+     * Ограничивает частоту кадров: не чаще [TARGET_FPS] FPS, уступая остаток времени потоку.
+     */
+    private fun sleepToCapFrameRate(frameStartNs: Long) {
+        val elapsedNs = System.nanoTime() - frameStartNs
+        val sleepNs = minFrameIntervalNs - elapsedNs
+        if (sleepNs <= 0) return
+        val ms = sleepNs / 1_000_000
+        val ns = (sleepNs % 1_000_000).toInt()
+        try {
+            Thread.sleep(ms, ns)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 
     /**
@@ -242,6 +265,9 @@ class CubeRenderer(@Suppress("UNUSED_PARAMETER") context: Context) : GLSurfaceVi
 
     companion object {
         private const val TAG = "CubeRenderer"
+
+        /** Целевая частота кадров (не чаще этого числа отрисовок в секунду). */
+        private const val TARGET_FPS = 60
 
         private const val COORDS_PER_VERTEX = 3
         private const val COLOR_COMPONENTS = 4
