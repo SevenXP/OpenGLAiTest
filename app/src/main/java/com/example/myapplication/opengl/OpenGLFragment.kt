@@ -33,7 +33,7 @@ class OpenGLFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         if (isSupportES2()) {
-            cubeRenderer = ExampleOpenGlRender(requireContext())
+            cubeRenderer = CubeRenderer()
             binding.glSurfaceView.setEGLContextClientVersion(2)
             binding.glSurfaceView.setRenderer(cubeRenderer)
         }
