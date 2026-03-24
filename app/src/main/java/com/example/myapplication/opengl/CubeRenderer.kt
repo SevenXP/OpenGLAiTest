@@ -58,6 +58,7 @@ class CubeRenderer : GLSurfaceView.Renderer {
     private var mvpMatrixHandle = 0
 
     private var angle = 0f
+    private var lastFrameTimeNs = 0L
 
     // ── Vertex data: position (x,y,z) + color (r,g,b,a) per vertex ──────────
     // 24 vertices total — 4 per face so each face gets its own solid color.
@@ -128,14 +129,24 @@ class CubeRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        val frameStartNs = System.nanoTime()
+
+        // Time-based rotation: constant 42°/s regardless of actual frame rate
+        val deltaSec = if (lastFrameTimeNs == 0L) {
+            0f
+        } else {
+            (frameStartNs - lastFrameTimeNs) / 1_000_000_000f
+        }
+        lastFrameTimeNs = frameStartNs
+
+        angle += ROTATION_DEGREES_PER_SEC * deltaSec
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
-        // Reset model matrix and apply cumulative rotation around a diagonal axis
         Matrix.setIdentityM(mModelMatrix, 0)
         Matrix.rotateM(mModelMatrix, 0, angle, 1f, 1f, 0.5f)
-        angle += 0.7f
 
-        // MVP = Projection × View × Model  (right-to-left application order)
+        // MVP = Projection × View × Model
         Matrix.multiplyMM(mTempMatrix, 0, mViewMatrix, 0, mModelMatrix, 0)
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mTempMatrix, 0)
 
@@ -147,6 +158,17 @@ class CubeRenderer : GLSurfaceView.Renderer {
             GLES20.GL_UNSIGNED_SHORT,
             indexBuffer
         )
+
+        // Throttle to ~60 FPS: sleep for remaining time if frame finished early
+        val elapsedMs = (System.nanoTime() - frameStartNs) / 1_000_000L
+        val sleepMs = FRAME_INTERVAL_MS - elapsedMs
+        if (sleepMs > 0) {
+            try {
+                Thread.sleep(sleepMs)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
@@ -265,7 +287,10 @@ class CubeRenderer : GLSurfaceView.Renderer {
         private const val COLORS_PER_VERTEX = 4
         private const val BYTES_PER_FLOAT = 4
         private const val BYTES_PER_SHORT = 2
-        // 7 floats per vertex × 4 bytes per float = 28 bytes stride
         private const val STRIDE = (COORDS_PER_VERTEX + COLORS_PER_VERTEX) * BYTES_PER_FLOAT
+
+        private const val TARGET_FPS = 60
+        private const val FRAME_INTERVAL_MS = 1000L / TARGET_FPS  // ~16 ms
+        private const val ROTATION_DEGREES_PER_SEC = 42f
     }
 }
