@@ -9,8 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.example.myapplication.databinding.FragmentOpenGlBinding
-import com.example.myapplication.example.ExampleOpenGlRender
-
 
 class OpenGLFragment : Fragment() {
     // Nullable private binding to prevent memory leaks
@@ -33,7 +31,7 @@ class OpenGLFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         if (isSupportES2()) {
-            cubeRenderer = ExampleOpenGlRender(requireContext())
+            cubeRenderer = CubeRenderer()
             binding.glSurfaceView.setEGLContextClientVersion(2)
             binding.glSurfaceView.setRenderer(cubeRenderer)
         }
