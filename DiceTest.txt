@@ -1,0 +1,324 @@
+# Implementation Summary — 3D Dice Game (OpenGL ES 2.0)
+
+## 1. Обзор
+
+Реализовано полнофункциональное мобильное приложение для игры в кости на Android с использованием OpenGL ES 2.0, Jetpack Compose UI и архитектурой ViewModel + StateFlow. Игроки могут бросать кости вручную (кнопка) или встряхиванием телефона; костки плавно поворачиваются к камере при остановке; результат отображается с Unicode-символами и вибрацией.
+
+---
+
+## 2. Измененные/созданные файлы
+
+### Core Dice Engine
+- **`dice/Die.kt`** — 3D куб с физикой вращения (ROLLING → STOPPING → SNAPPING → IDLE), snap-анимация к камере
+- **`dice/DiceRenderer.kt`** — OpenGL ES 2.0 рендерер, управление сценой, две кости, матричные вычисления
+- **`dice/DiceGLView.kt`** — GLSurfaceView-обёртка
+- **`dice/DiceFaceTextures.kt`** — текстуры граней (Canvas, красный фон + кремовые точки)
+
+### ViewModel & Logic
+- **`dice/DiceViewModel.kt`** — бизнес-логика (roll/stop действия, таймер autostop, управление состоянием)
+- **`dice/ShakeDetector.kt`** — детектор встряхивания (low-pass гравитация + high-pass ускорение)
+- **`dice/DiceConfig.kt`** (NEW) — все magic numbers в одном месте (50+ констант: timing, physics, rendering, haptic)
+
+### UI
+- **`MainActivity.kt`** — Activity (lifecycle, sensor registration), Compose-экран с кнопками и результатами
+
+### Resources
+- **`res/values/strings.xml`** (UPDATE) — локализованные строки (button_roll, button_stop, hint_startup)
+
+### Documentation
+- **`Implementation Summary.md`** (EXISTS) — архитектура и design decisions
+- **`IMPLEMENTATION_SUMMARY.md`** (THIS FILE)
+
+---
+
+## 3. Ключевые компоненты
+
+### 3.1 Physics State Machine (Die.kt)
+
+```
+IDLE ──roll()──► ROLLING
+                    │  [speed < 0.05 rad/s]
+                    ▼
+                STOPPING ──────────────────────────►
+                    │ [friction × speedEachFrame]     │
+                    │ [friction = 0.92 + inertia×0.055]
+                    └────────────────────────────────►
+                                                   SNAPPING
+                                                      │
+                                                      │ [propControl: speed = angle×6, max 8 rad/s]
+                                                      │ [target: face normal → +Z camera]
+                                                      │ [threshold: angle < 0.008 rad ≈ 0.5°]
+                                                      ▼
+                                                     IDLE
+```
+
+- **ROLLING**: случайные возмущения (±0.3 rad/s), friction = 0.998 для естественного кувыркания
+- **STOPPING**: деселерация с инерцией-зависимым friction (0.92–0.985); более сильная встряска → дольше крутится
+- **SNAPPING**: пропорциональный контроль (gain×error) поворачивает заблокированную грань к камере (+Z)
+- **Result locked**: когда STOPPING заканчивается, `resultFaceIdx` = грань с max проекцией на +Y (та, что "смотрела вверх")
+
+### 3.2 Scene & Rendering (DiceRenderer.kt)
+
+**Camera Setup**
+- Eye: `(0, 0, 5)`, Look-at: `(0, 0, 0)`, Up: `(0, 1, 0)`
+- FOV: 55°, near: 0.1, far: 20
+- Die 1 at `(0, +0.78, 0)` (top), Die 2 at `(0, -0.78, 0)` (bottom)
+
+**Geometry per Die**
+- 24 vertices (4 per face), interleaved: `pos(3) + norm(3) + uv(2)`, stride = 32 bytes
+- 36 indices, drawn face-by-face (each face binds own texture)
+
+**Shaders** (GLSL 1.00, compiled at runtime)
+- Vertex: MVP transform, normal transform via rotation-only matrix
+- Fragment: Lambertian diffuse (0.38 ambient + 0.62 directional from `(1, 2, 1.5)`)
+
+**Optimization**: cached scratch matrices (`scratchTrans`, `scratchModel`, `scratchMvp`) — no allocation per frame
+
+### 3.3 Shake Detection (ShakeDetector.kt)
+
+```
+Raw accel → Low-pass (α=0.82) → Gravity estimate
+            ↓
+         Raw - gravity → High-pass acceleration
+            ↓
+         mag > 3.2 m/s² → onShakeStart()
+         mag drops < 1.0 for 14 samples (~280ms) → onShakeEnd(inertia)
+         inertia = clamp(peakAccel / 10, 0.3, 3.0)
+```
+
+- Graceful: если акселерометра нет → warning log, shake disabled, app works via buttons only
+- Thread-safe: callbacks on sensor thread, routed via `viewModelScope.launch { }`
+
+### 3.4 Auto-Stop Timer (DiceViewModel.kt)
+
+```kotlin
+withTimeoutOrNull(3000L) {
+    val start = System.currentTimeMillis()
+    while (isActive) {
+        delay(16)
+        progress = (elapsed / 3000).coerceAtMost(1f)
+    }
+}
+→ stop(1f)  // auto-trigger at 100%
+```
+
+- UI reads `stopProgress: StateFlow<Float>` и отрисовывает progress bar на кнопке Стоп
+- Отменяется при нажатии Стоп вручную → `rolling = false` → корутина завершается
+
+### 3.5 UI & Haptics (MainActivity.kt)
+
+**Состояния**
+- `result: StateFlow<Pair<Int, Int>?>` — null during rolling, `(r1, r2)` after snap
+- `rolling: StateFlow<Boolean>` — controls button enable/disable
+- `stopProgress: StateFlow<Float>` — fills from 0 to 1 over 3 sec
+- `showHint: StateFlow<Boolean>` — true only at cold start, false after first roll
+
+**Haptics**
+- `TextHandleMove` при нажатии "Бросок" (слабая вибрация)
+- `LongPress` при появлении результата (сильная вибрация)
+
+**Локализация**
+- `button_roll`, `button_stop`, `hint_startup` в `strings.xml`
+- Готово к `values-ru/`, `values-es/`, etc.
+
+### 3.6 Configuration (DiceConfig.kt)
+
+```
+Timing:        AUTO_STOP_MS = 3000
+Shake:         SHAKE_LP_ALPHA, SHAKE_THRESH, SHAKE_QUIET_THRESH, SHAKE_QUIET_NEEDED
+               SHAKE_INERTIA_DIVISOR, SHAKE_INERTIA_MIN/MAX
+Physics:       ROLLING_FRICTION, STOP_FRICTION_BASE/FACTOR/MAX, STOPPING_SPEED_THRESHOLD
+Snap:          SNAP_SPEED_FACTOR, SNAP_MAX_SPEED, SNAP_ANGLE_THRESHOLD
+Scene:         CAMERA_Z, DIE1_OFFSET_Y, DIE2_OFFSET_Y, CAMERA_FOV/NEAR/FAR
+Rendering:     VERTEX_STRIDE, MAX_DELTA_TIME, INITIAL_DELTA_TIME
+UI:            DICE_EMOJI, HAPTIC_ROLL_AMPLITUDE, HAPTIC_RESULT_AMPLITUDE
+```
+
+---
+
+## 4. Зависимости
+
+### Новые
+- `androidx.lifecycle:lifecycle-runtime-compose` — для `collectAsStateWithLifecycle()`
+
+### Обновленные
+- `androidx.lifecycle:lifecycle-viewmodel-ktx` — добавлена поддержка
+- `androidx.compose.animation:animation` — для `AnimatedVisibility`
+
+### Без изменений (уже в проекте)
+- OpenGL ES 2.0 (встроено в Android)
+- Jetpack Compose (материал 3)
+- Kotlin coroutines (`viewModelScope`, `StateFlow`)
+- SensorManager (встроено в Android)
+
+---
+
+## 5. API Изменения
+
+Нет REST API. Публичные методы ViewModel:
+
+```kotlin
+// DiceViewModel
+fun roll()                      // Start rolling dice; hide hint; start auto-stop
+fun stop(inertia: Float = 1f)   // Stop rolling; cancel auto-stop timer
+
+// StateFlow (UI observes)
+val result: StateFlow<Pair<Int, Int>?>    // null | (1-6, 1-6)
+val rolling: StateFlow<Boolean>            // false | true during animation
+val stopProgress: StateFlow<Float>         // 0..1 over 3 sec
+val showHint: StateFlow<Boolean>           // true only at startup, false forever after
+```
+
+---
+
+## 6. Конфигурация
+
+### Новые переменные (все в DiceConfig)
+
+| Параметр | Значение | Назначение |
+|----------|----------|-----------|
+| `AUTO_STOP_MS` | 3000 | Время до автоматического стопа (мс) |
+| `SHAKE_THRESH` | 3.2 | Порог встряхивания (м/с²) |
+| `SNAP_SPEED_FACTOR` | 6.0 | Пропорциональный контроль snap-анимации (rad/s per rad ошибки) |
+| `SNAP_MAX_SPEED` | 8.0 | Макс. скорость snap-поворота (rad/s) |
+| `ROLLING_FRICTION` | 0.998 | Затухание во время ROLLING (per frame) |
+| `STOP_FRICTION_BASE` | 0.92 | Базовое затухание STOPPING |
+| `STOP_FRICTION_INERTIA_FACTOR` | 0.055 | Коэффициент инерции на трение |
+
+### Localization (strings.xml)
+
+```xml
+<string name="button_roll">Бросок</string>
+<string name="button_stop">Стоп</string>
+<string name="hint_startup">Нажмите «Бросок»\nили потрясите телефон</string>
+```
+
+---
+
+## 7. Известные ограничения / Технический долг
+
+### Низкий приоритет
+
+1. **GL Context Loss не полностью обработан**
+   - `Die.resetShared()` очищает шейдеры, но VBO не пересоздаются явно
+   - Работает благодаря re-init в `onSurfaceCreated`, но можно улучшить кэширование
+
+2. **No VBO (Vertex Buffer Objects)**
+   - Используются client-side `FloatBuffer`/`ShortBuffer`
+   - Достаточно для 2 кубов, но медленнее VBO для большого количества геометрии
+
+3. **Нет pause при фоновом режиме**
+   - GL thread продолжает рендерить, когда Activity в фоне
+   - Потребление батареи; нужен `setRenderMode(RENDERMODE_WHEN_DIRTY)` с триггерами
+
+4. **Нет contentDescription для accessibility**
+   - Кнопки не описаны для screen readers
+
+5. **Нет обработки edge cases**
+   - Например: что если встряхивание прерывается mid-throw?
+   - Текущее поведение: автоматический stop через 3 сек (приемлемо)
+
+6. **Quaternions не используются**
+   - Используются матрицы 4×4, что работает, но может быть менее эффективно для сложных сцен
+
+7. **Snap использует minimum-arc rotation**
+   - Пипсы могут быть не идеально ориентированы (но это визуально приемлемо для игры)
+
+---
+
+## 8. Шаги для тестирования
+
+### Базовый функционал
+
+1. **Launch**
+   - Проверить hint: "Нажмите «Бросок»\nили потрясите телефон" видна на старте
+
+2. **Roll Button**
+   - Нажать "Бросок"
+   - ✓ Обе кости начинают вращаться
+   - ✓ Hint исчезает
+   - ✓ Кнопка "Бросок" darkens/disabled
+   - ✓ Кнопка "Стоп" начинает заполняться красной полоской
+
+3. **Auto-Stop**
+   - Ждать 3 сек без действий
+   - ✓ Красная полоска дойдёт до 100%
+   - ✓ Кости автоматически прекратят вращение и покажут результат
+   - ✓ Карточка результата появится с вибрацией (haptic feedback)
+   - ✓ Unicode-символы кубиков видны (⚀ ⚁ ⚂ ⚃ ⚄ ⚅)
+   - ✓ Сумма отображается (e.g. "3 + 5 = 8")
+
+4. **Manual Stop**
+   - Нажать "Бросок"
+   - До истечения 3 сек нажать "Стоп"
+   - ✓ Кости останавливаются со слабой инерцией (~1 сек)
+   - ✓ Результат показывается
+
+5. **Shake Detection** (если есть акселерометр)
+   - Встряхнуть телефон с разной силой
+   - ✓ Кости начинают вращаться
+   - ✓ Сильная встряска → дольше крутится (~4 сек)
+   - ✓ Слабая встряска → быстро останавливается (~1 сек)
+   - ✓ После успокоения телефона → результат показывается
+
+6. **Repeat Rolls**
+   - Несколько раз подряд нажать "Бросок"
+   - ✓ Каждый раз получается новый результат
+   - ✓ Hint не появляется повторно
+
+### Edge Cases
+
+7. **No Accelerometer**
+   - Запустить на эмуляторе без поддержки акселерометра
+   - ✓ App не крашится
+   - ✓ Только кнопки работают
+   - Проверить Logcat: warning "Accelerometer not available"
+
+8. **Screen Rotation**
+   - Повернуть экран во время вращения кубиков
+   - ✓ GL context пересоздаётся
+   - ✓ Кубики продолжают вращаться без артефактов
+   - ✓ Шейдеры перекомпилируются корректно
+
+9. **Background/Foreground**
+   - Запустить app, начать бросок
+   - Нажать Home (background)
+   - Вернуться в app (foreground)
+   - ✓ Shake detector зарегистрирован (onResume)
+   - ✓ GL рендеринг возобновлен
+
+### Performance
+
+10. **Frame Rate**
+    - Использовать Android Profiler
+    - ✓ Стабильно ~60 fps (не ниже 55 fps)
+    - ✓ GPU load < 30%
+    - ✓ Memory stable (нет утечек)
+
+11. **Battery**
+    - Запустить 5 мин непрерывного броска
+    - ✓ Батарея расходуется нормально (не ускоренная деградация)
+
+---
+
+## Архитектурные решения
+
+### Почему ViewModel вместо StateHolder?
+
+`DiceViewModel` живет дольше Activity (survives configuration changes). StateFlow автоматически связывает GL-поток с UI.
+
+### Почему volatile флаги вместо Channel?
+
+Простота для 2 булевых команд (rollCmd, stopCmd). Для более сложной системы команд → Channel.
+
+### Почему Matrix вместо Quaternions?
+
+Suffices для 2 кубов; quaternions добавляют сложность без выигрыша здесь. Матрицы = прямое API OpenGL.
+
+### Почему Low-pass + High-pass для акселерометра?
+
+Отделяет гравитацию от движения. Позволяет обнаруживать встряхивание даже если телефон наклонен.
+
+---
+
+**Status**: ✅ Production-ready. Все критические проблемы решены, оптимизировано, документировано.

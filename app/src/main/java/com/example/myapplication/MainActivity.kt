@@ -3,7 +3,6 @@ package com.example.myapplication
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.example.myapplication.databinding.ActivityMainBinding
-import com.example.myapplication.opengl.OpenGLFragment
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -13,7 +12,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         val fragmentTransaction = supportFragmentManager.beginTransaction()
-        val newFragment = OpenGLFragment()
+        val newFragment = DiceFragment()
         fragmentTransaction.replace(binding.root.id, newFragment, newFragment::class.java.simpleName)
         fragmentTransaction.commit()
 
