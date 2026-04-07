@@ -46,6 +46,10 @@ class CubeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     // Rotation angle for animation
     private var rotationAngle = 0f
     
+    // FPS limiting variables (60 FPS = ~16.67ms per frame)
+    private val targetFrameTimeNanos: Long = 1_000_000_000L / 60  // 16,666,666 nanoseconds
+    private var lastFrameTimeNanos: Long = 0
+    
     /**
      * Cube vertex coordinates (36 vertices = 12 triangles × 3 vertices)
      * Each triangle is defined by 3 vertices for proper rendering with glDrawArrays
@@ -193,6 +197,9 @@ class CubeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         Log.d("CubeRenderer", "onSurfaceCreated called")
         
+        // Initialize FPS limiting timestamp
+        lastFrameTimeNanos = System.nanoTime()
+        
         // Enable depth testing for 3D rendering
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         
@@ -259,6 +266,26 @@ class CubeRenderer(private val context: Context) : GLSurfaceView.Renderer {
      * Called every frame - Apply transformations and render the cube
      */
     override fun onDrawFrame(gl: GL10?) {
+        // ============================================
+        // FPS LIMITING (60 FPS max)
+        // ============================================
+        val currentTimeNanos = System.nanoTime()
+        
+        if (lastFrameTimeNanos > 0) {
+            val elapsedNanos = currentTimeNanos - lastFrameTimeNanos
+            val sleepTimeNanos = targetFrameTimeNanos - elapsedNanos
+            
+            // Sleep if we're rendering faster than 60 FPS
+            if (sleepTimeNanos > 0) {
+                try {
+                    Thread.sleep(sleepTimeNanos / 1_000_000L)  // Convert to milliseconds
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                }
+            }
+        }
+        lastFrameTimeNanos = System.nanoTime()
+
         // Clear screen with black background and depth buffer
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         
