@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.example.myapplication.databinding.FragmentOpenGlBinding
-import com.example.myapplication.example.ExampleOpenGlRender
 
 
 class OpenGLFragment : Fragment() {
@@ -33,9 +32,13 @@ class OpenGLFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         if (isSupportES2()) {
-            cubeRenderer = ExampleOpenGlRender(requireContext())
+            cubeRenderer = CubeRenderer(requireContext())
             binding.glSurfaceView.setEGLContextClientVersion(2)
             binding.glSurfaceView.setRenderer(cubeRenderer)
+            // Set render mode to RENDERMODE_CONTINUOUSLY for smooth animation
+            // GLSurfaceView by default tries to sync with the display refresh rate (VSYNC), 
+            // which is typically 60Hz or higher on most Android devices.
+            binding.glSurfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         }
     }
 
